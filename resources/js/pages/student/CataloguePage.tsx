@@ -1,3 +1,5 @@
+import { studentApi } from '../../api/student.api';
+import { Categorie } from '../../types/offre.types';
 /**
  * SkillSwap Campus — Catalogue Public des Offres d'Échange (RG02, RG04)
  */
@@ -23,6 +25,11 @@ import { Button, Input, Select, Badge, Card, Spinner, Pagination, EmptyState, Al
 export const CataloguePage: React.FC = () => {
     const [searchParams, setSearchParams] = useSearchParams();
 
+    const [categories, setCategories] = useState<Categorie[]>([]);
+    const [category, setCategory] = useState(searchParams.get('categorie_id') || '');
+    const [date, setDate] = useState(searchParams.get('date') || '');
+    useEffect(() => { studentApi.categories().then(setCategories).catch(() => setError('Catégories indisponibles.')); }, []);
+
     // Filtres tirés de l'URL ou des valeurs par défaut
     const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
     const [niveau, setNiveau] = useState<NiveauOffre | ''>((searchParams.get('niveau') as any) || '');
@@ -46,6 +53,8 @@ export const CataloguePage: React.FC = () => {
         };
 
         if (searchTerm.trim()) filtres.q = searchTerm.trim();
+        if (category) filtres.categorie_id = category;
+        if (date) filtres.date = date;
         if (niveau) filtres.niveau = niveau;
         if (mode) filtres.mode = mode;
         if (duree) filtres.duree = Number(duree);
@@ -61,7 +70,7 @@ export const CataloguePage: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [searchTerm, niveau, mode, duree]);
+    }, [searchTerm, niveau, mode, duree, category, date]);
 
     // Déclencher le chargement lorsque la page ou les filtres changent
     useEffect(() => {
@@ -75,6 +84,8 @@ export const CataloguePage: React.FC = () => {
 
         const params: Record<string, string> = {};
         if (searchTerm.trim()) params.q = searchTerm.trim();
+        if (category) params.categorie_id = category;
+        if (date) params.date = date;
         if (niveau) params.niveau = niveau;
         if (mode) params.mode = mode;
         if (duree) params.duree = duree;
@@ -86,6 +97,8 @@ export const CataloguePage: React.FC = () => {
 
     const reinitialiserFiltres = () => {
         setSearchTerm('');
+        setCategory('');
+        setDate('');
         setNiveau('');
         setMode('');
         setDuree('');
@@ -93,7 +106,7 @@ export const CataloguePage: React.FC = () => {
         setSearchParams({});
     };
 
-    const filtresActifs = Boolean(searchTerm.trim() || niveau || mode || duree);
+    const filtresActifs = Boolean(searchTerm.trim() || niveau || mode || duree || category || date);
 
     return (
         <div className="space-y-8">
@@ -154,6 +167,10 @@ export const CataloguePage: React.FC = () => {
                     </div>
                 </form>
 
+                <div className="grid sm:grid-cols-2 gap-3 mt-3">
+                    <Select id="filter-category" label="Catégorie" value={category} onChange={e => { setCategory(e.target.value); setCurrentPage(1); }} options={[{ value: '', label: 'Toutes les catégories' }, ...categories.map(c => ({ value: c.id, label: c.nom }))]} />
+                    <Input id="filter-date" label="Date du créneau" type="date" value={date} onChange={e => { setDate(e.target.value); setCurrentPage(1); }} />
+                </div>
                 {/* Filtres secondaires */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-slate-100">
                     <Select

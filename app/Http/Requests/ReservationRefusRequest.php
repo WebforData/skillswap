@@ -14,7 +14,7 @@ class ReservationRefusRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'motif' => ['nullable', 'string', 'max:500'],
+            'motif' => ['required', 'string', 'min:3', 'max:500'],
         ];
     }
 }

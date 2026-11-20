@@ -46,6 +46,7 @@ export interface Offre {
 }
 
 export interface OffreFiltres {
+    date?: string;
     q?: string;
     search?: string;
     categorie_id?: number | string;

@@ -24,8 +24,8 @@ test.describe('SkillSwap Campus — Suite E2E Complète (10 Parcours)', () => {
         // Authentifier l'administrateur
         const adminLoginRes = await request.post('/api/auth/login', {
             data: {
-                email: 'admin@skillswap.univ.fr',
-                password: 'AdminSecret123!',
+                email: 'admin@skillswap.edu',
+                password: 'password',
             },
         });
         expect(adminLoginRes.status()).toBe(200);

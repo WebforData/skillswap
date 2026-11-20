@@ -2,6 +2,7 @@
  * SkillSwap Campus — Profil Étudiant, Portefeuille & Évaluations (RG15, RG16)
  */
 
+import { ProfileTools } from './ProfileTools';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     Coins,
@@ -153,6 +154,8 @@ export const ProfilePage: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            <ProfileTools />
 
             {/* Fiche Informations Personnelles */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

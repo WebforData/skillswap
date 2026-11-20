@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\ReservationNotificationService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -12,6 +13,11 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class Reservation extends Model
 {
     use HasFactory;
+
+    protected static function booted(): void
+    {
+        static::saved(fn (self $reservation) => app(ReservationNotificationService::class)->record($reservation));
+    }
 
     /**
      * Nom de la table associée.

@@ -2,25 +2,19 @@
  * SkillSwap Campus — Point d'Entrée & Routage SPA Intégré aux Layouts
  */
 
-import React, { useState, lazy, Suspense } from 'react';
+import React, { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
-import { NotificationProvider, useNotification } from './contexts/NotificationContext';
-import { useAuth } from './hooks/useAuth';
+import { NotificationProvider } from './contexts/NotificationContext';
 import { ProtectedRoute } from './routes/ProtectedRoute';
 import { AdminRoute } from './routes/AdminRoute';
 import { GuestLayout, AppLayout, AdminLayout } from './layouts';
 import {
     Button,
     Card,
-    Badge,
-    Modal,
-    EmptyState,
 } from './components/common';
 import {
-    Coins,
     BookOpen,
-    Clock,
     CheckCircle2,
     Sparkles,
 } from 'lucide-react';
@@ -28,6 +22,11 @@ import {
 /* -------------------------------------------------------------------------- */
 /* Chargement dynamique (React.lazy Code Splitting)                           */
 /* -------------------------------------------------------------------------- */
+const DashboardPage = lazy(() => import('./pages/student/DashboardPage'));
+const EvaluationsPage = lazy(() => import('./pages/student/EvaluationsPage'));
+const NotificationsPage = lazy(() => import('./pages/student/NotificationsPage'));
+const DisputesPage = lazy(() => import('./pages/student/DisputesPage'));
+const PublicReviewsPage = lazy(() => import('./pages/student/PublicReviewsPage'));
 const LoginPage = lazy(() => import('./pages/auth/LoginPage').then(m => ({ default: m.LoginPage })));
 const RegisterPage = lazy(() => import('./pages/auth/RegisterPage').then(m => ({ default: m.RegisterPage })));
 const CataloguePage = lazy(() => import('./pages/student/CataloguePage').then(m => ({ default: m.CataloguePage })));
@@ -36,6 +35,7 @@ const MesOffresPage = lazy(() => import('./pages/student/MesOffresPage').then(m 
 const PlanningPage = lazy(() => import('./pages/student/PlanningPage').then(m => ({ default: m.PlanningPage })));
 const ReservationsPage = lazy(() => import('./pages/student/ReservationsPage').then(m => ({ default: m.ReservationsPage })));
 const ProfilePage = lazy(() => import('./pages/student/ProfilePage').then(m => ({ default: m.ProfilePage })));
+const AdminSessionsPage = lazy(() => import('./pages/admin/AdminSessionsPage'));
 const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage').then(m => ({ default: m.AdminDashboardPage })));
 const AdminUsersPage = lazy(() => import('./pages/admin/AdminUsersPage').then(m => ({ default: m.AdminUsersPage })));
 const AdminCategoriesPage = lazy(() => import('./pages/admin/AdminCategoriesPage').then(m => ({ default: m.AdminCategoriesPage })));
@@ -108,148 +108,6 @@ const HomePage: React.FC = () => {
 };
 
 /* -------------------------------------------------------------------------- */
-/* Vues de Démonstration / Validation des Layouts                             */
-/* -------------------------------------------------------------------------- */
-const StudentDashboardPlaceholder: React.FC = () => {
-    const { user, refreshUser } = useAuth();
-    const { info } = useNotification();
-    const [testModalOpen, setTestModalOpen] = useState(false);
-
-    return (
-        <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-xl font-bold text-slate-900">
-                        Bonjour, {user?.prenom} {user?.nom} !
-                    </h1>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                        Filière : {user?.filiere || 'Non renseignée'} &bull; Rôle :{' '}
-                        <Badge status="actif" size="sm" label="Étudiant actif" />
-                    </p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                            info("Notification de test émise via useNotification !");
-                            refreshUser();
-                        }}
-                    >
-                        Tester Notification
-                    </Button>
-                    <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() => setTestModalOpen(true)}
-                    >
-                        Ouvrir Modale
-                    </Button>
-                </div>
-            </div>
-
-            {/* Cartes d'Indicateurs */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Card>
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-                            <Coins className="w-5 h-5" />
-                        </div>
-                        <div>
-                            <p className="text-xs text-slate-500 font-medium">Solde disponible</p>
-                            <p className="text-lg font-bold text-slate-900">
-                                {user?.portefeuille?.solde_disponible ?? 0} heure(s)
-                            </p>
-                        </div>
-                    </div>
-                </Card>
-
-                <Card>
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                            <Clock className="w-5 h-5" />
-                        </div>
-                        <div>
-                            <p className="text-xs text-slate-500 font-medium">Crédits sous séquestre</p>
-                            <p className="text-lg font-bold text-slate-900">
-                                {user?.portefeuille?.credits_bloques ?? 0} heure(s)
-                            </p>
-                        </div>
-                    </div>
-                </Card>
-
-                <Card>
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                            <CheckCircle2 className="w-5 h-5" />
-                        </div>
-                        <div>
-                            <p className="text-xs text-slate-500 font-medium">Total crédits</p>
-                            <p className="text-lg font-bold text-slate-900">
-                                {user?.portefeuille?.solde_total ?? 0} heure(s)
-                            </p>
-                        </div>
-                    </div>
-                </Card>
-            </div>
-
-            <Card title="État du Système Frontend (Étape 4)">
-                <p className="text-xs text-slate-600 mb-4 leading-relaxed">
-                    Le layout étudiant <code>AppLayout</code>, la barre de navigation avec solde en temps réel,
-                    la barre latérale rétractable et les composants atomiques (Boutons, Badges, Alertes, Modales) sont opérationnels.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                    <Badge status="en_attente" />
-                    <Badge status="acceptee" />
-                    <Badge status="realisee" />
-                    <Badge status="en_litige" />
-                    <Badge status="publiee" />
-                    <Badge status="archivee" />
-                </div>
-            </Card>
-
-            {/* Modale Accessible */}
-            <Modal
-                isOpen={testModalOpen}
-                onClose={() => setTestModalOpen(false)}
-                title="Validation des Modales Accessibles"
-                description="Ce composant gère la fermeture par touche Échap, le blocage de scroll et l'accessibilité ARIA."
-                footer={
-                    <>
-                        <Button variant="secondary" size="sm" onClick={() => setTestModalOpen(false)}>
-                            Fermer
-                        </Button>
-                        <Button variant="primary" size="sm" onClick={() => setTestModalOpen(false)}>
-                            Confirmer
-                        </Button>
-                    </>
-                }
-            >
-                <p className="text-xs text-slate-600 leading-relaxed">
-                    Les modales sont prêtes pour les confirmations d'annulation pré-séance (RG10),
-                    de refus avec motif (RG09), et d'arbitrage de litiges (RG13).
-                </p>
-            </Modal>
-        </div>
-    );
-};
-
-const GenericPagePlaceholder: React.FC<{ title: string; desc: string }> = ({ title, desc }) => {
-    return (
-        <div className="space-y-4">
-            <h1 className="text-xl font-bold text-slate-900">{title}</h1>
-            <Card>
-                <EmptyState
-                    title={title}
-                    description={`${desc} — Ce module sera connecté lors de la prochaine étape.`}
-                />
-            </Card>
-        </div>
-    );
-};
-
-/* -------------------------------------------------------------------------- */
 /* Application Globale avec Routage Emboîté                                   */
 /* -------------------------------------------------------------------------- */
 export const App: React.FC = () => {
@@ -264,6 +122,7 @@ export const App: React.FC = () => {
                                 <Route path="/" element={<HomePage />} />
                                 <Route path="/catalogue" element={<CataloguePage />} />
                                 <Route path="/offres/:id" element={<OffreDetailPage />} />
+                                <Route path="/profils/:id/avis" element={<PublicReviewsPage />} />
                                 <Route path="/connexion" element={<LoginPage />} />
                                 <Route path="/inscription" element={<RegisterPage />} />
                             </Route>
@@ -281,21 +140,15 @@ export const App: React.FC = () => {
                                     </ProtectedRoute>
                                 }
                             >
-                                <Route index element={<StudentDashboardPlaceholder />} />
+                                <Route index element={<DashboardPage />} />
                                 <Route path="catalogue" element={<CataloguePage />} />
                                 <Route path="offres/:id" element={<OffreDetailPage />} />
                                 <Route path="mes-offres" element={<MesOffresPage />} />
                                 <Route path="planning" element={<PlanningPage />} />
                                 <Route path="reservations" element={<ReservationsPage />} />
-                                <Route
-                                    path="evaluations"
-                                    element={
-                                        <GenericPagePlaceholder
-                                            title="Évaluations & Avis"
-                                            desc="Consultez les retours pédagogiques reçus et rédigés."
-                                        />
-                                    }
-                                />
+                                <Route path="evaluations" element={<EvaluationsPage />} />
+                                <Route path="notifications" element={<NotificationsPage />} />
+                                <Route path="litiges" element={<DisputesPage />} />
                                 <Route path="profil" element={<ProfilePage />} />
                             </Route>
 
@@ -310,6 +163,7 @@ export const App: React.FC = () => {
                             >
                                 <Route index element={<AdminDashboardPage />} />
                                 <Route path="users" element={<AdminUsersPage />} />
+                                <Route path="seances" element={<AdminSessionsPage />} />
                                 <Route path="categories" element={<AdminCategoriesPage />} />
                                 <Route path="offres" element={<AdminOffersPage />} />
                                 <Route path="litiges" element={<AdminDisputesPage />} />

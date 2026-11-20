@@ -11,10 +11,35 @@ use App\Services\LitigeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
 
 class LitigeController extends Controller
 {
+    public function mine(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $items = Litige::whereHas('reservation', fn ($q) => $q->where('beneficiaire_id', $user->id)
+            ->orWhereHas('creneau.offre', fn ($o) => $o->where('etudiant_id', $user->id)))
+            ->with(['reservation.creneau.offre.intervenant', 'reservation.beneficiaire', 'declarant', 'administrateur'])->latest()->get();
+
+        return response()->json(['litiges' => LitigeResource::collection($items)]);
+    }
+
+    public function statement(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate(['message' => 'required|string|min:10|max:2000']);
+
+        return DB::transaction(function () use ($request, $id, $data) {
+            $litige = Litige::whereKey($id)->lockForUpdate()->firstOrFail();
+            abort_unless($litige->reservation->isParticipant($request->user()), 403);
+            abort_unless($litige->statut === 'ouvert', 409, 'Ce litige est déjà réglé.');
+            DB::table('litige_statements')->insert(['litige_id' => $id, 'user_id' => $request->user()->id, 'message' => $data['message'], 'created_at' => now(), 'updated_at' => now()]);
+
+            return response()->json(['message' => 'Votre témoignage a été ajouté.'], 201);
+        });
+    }
+
     public function __construct(
         protected LitigeService $litigeService
     ) {}
@@ -27,7 +52,7 @@ class LitigeController extends Controller
         /** @var User $user */
         $user = Auth::user();
 
-        if (!$user || !$user->isAdministrateur()) {
+        if (! $user || ! $user->isAdministrateur()) {
             return response()->json([
                 'message' => 'Accès interdit. Seuls les administrateurs peuvent consulter la liste des litiges (RG13).',
             ], Response::HTTP_FORBIDDEN);
@@ -71,7 +96,7 @@ class LitigeController extends Controller
             'administrateur',
         ])->findOrFail($id);
 
-        if (!$user || (!$user->isAdministrateur() && !$litige->reservation?->isParticipant($user))) {
+        if (! $user || (! $user->isAdministrateur() && ! $litige->reservation?->isParticipant($user))) {
             return response()->json([
                 'message' => 'Accès interdit. Vous n\'êtes pas autorisé à consulter ce litige (RG19).',
             ], Response::HTTP_FORBIDDEN);
@@ -85,10 +110,6 @@ class LitigeController extends Controller
     /**
      * Arbitre définitivement un dossier de litige (RG13, RG14).
      * Endpoint réservé exclusivement aux administrateurs actifs.
-     *
-     * @param  LitigeArbitrageRequest  $request
-     * @param  int                     $id
-     * @return JsonResponse
      */
     public function arbitrer(LitigeArbitrageRequest $request, int $id): JsonResponse
     {

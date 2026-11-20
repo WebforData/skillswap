@@ -23,10 +23,6 @@ class CreneauService
     /**
      * Ajoute un créneau de disponibilité pour une offre publiée (RG02, RG04, RG08).
      *
-     * @param  User   $intervenant
-     * @param  int    $offreId
-     * @param  array  $data
-     * @return Creneau
      *
      * @throws CompteDesactiveException
      * @throws OffreNonAutoriseeException
@@ -38,7 +34,7 @@ class CreneauService
     public function ajouterCreneau(User $intervenant, int $offreId, array $data): Creneau
     {
         // 1. RG18 : Compte actif requis
-        if (!$intervenant->isActif()) {
+        if (! $intervenant->isActif()) {
             throw new CompteDesactiveException("Votre compte est désactivé (RG18). Impossible d'ajouter un créneau.");
         }
 
@@ -47,13 +43,13 @@ class CreneauService
             $offre = Offre::where('id', $offreId)->lockForUpdate()->firstOrFail();
 
             // 3. Propriété de l'offre
-            if ((int) $offre->etudiant_id !== (int) $intervenant->id && !$intervenant->isAdministrateur()) {
+            if ((int) $offre->etudiant_id !== (int) $intervenant->id && ! $intervenant->isAdministrateur()) {
                 throw new OffreNonAutoriseeException("Vous n'êtes pas autorisé à ajouter des créneaux pour cette offre.");
             }
 
             // 4. RG04 : L'offre doit être publiée
             if ($offre->statut !== 'publiee') {
-                throw new OffreStatutInvalideException("Seule une offre publiée peut recevoir de nouveaux créneaux (RG04).");
+                throw new OffreStatutInvalideException('Seule une offre publiée peut recevoir de nouveaux créneaux (RG04).');
             }
 
             // 5. Calcul des dates et vérification du futur (RG04)
@@ -83,7 +79,7 @@ class CreneauService
             $this->verifierChevauchementIntervenant($intervenant->id, $date, $heureDebut, $heureFin);
 
             // 8. Création du créneau
-            $creneau = new Creneau();
+            $creneau = new Creneau;
             $creneau->forceFill([
                 'offre_id' => $offre->id,
                 'date' => $date,
@@ -101,10 +97,6 @@ class CreneauService
     /**
      * Modifie un créneau horaire existant (RG02, RG07, RG08, RG17).
      *
-     * @param  User   $intervenant
-     * @param  int    $creneauId
-     * @param  array  $data
-     * @return Creneau
      *
      * @throws CompteDesactiveException
      * @throws OffreNonAutoriseeException
@@ -115,15 +107,15 @@ class CreneauService
      */
     public function modifierCreneau(User $intervenant, int $creneauId, array $data): Creneau
     {
-        if (!$intervenant->isActif()) {
-            throw new CompteDesactiveException("Votre compte est désactivé (RG18).");
+        if (! $intervenant->isActif()) {
+            throw new CompteDesactiveException('Votre compte est désactivé (RG18).');
         }
 
         return DB::transaction(function () use ($intervenant, $creneauId, $data) {
             $creneau = Creneau::with('offre')->where('id', $creneauId)->lockForUpdate()->firstOrFail();
 
             // 1. Autorisation
-            if ((int) $creneau->offre->etudiant_id !== (int) $intervenant->id && !$intervenant->isAdministrateur()) {
+            if ((int) $creneau->offre->etudiant_id !== (int) $intervenant->id && ! $intervenant->isAdministrateur()) {
                 throw new OffreNonAutoriseeException("Vous n'êtes pas autorisé à modifier ce créneau.");
             }
 
@@ -134,7 +126,7 @@ class CreneauService
                 ->exists();
 
             if ($estOccupe) {
-                throw new CreneauOccupeException("Impossible de modifier un créneau déjà attribué à une réservation confirmée ou en cours (RG07).");
+                throw new CreneauOccupeException('Impossible de modifier un créneau déjà attribué à une réservation confirmée ou en cours (RG07).');
             }
 
             // 3. Calcul des nouvelles valeurs
@@ -150,7 +142,7 @@ class CreneauService
 
             // 4. Vérification date future (RG04)
             if ($debut->lessThanOrEqualTo(now())) {
-                throw new CreneauInvalideException("La nouvelle date et heure doivent être strictement futures (RG04).");
+                throw new CreneauInvalideException('La nouvelle date et heure doivent être strictement futures (RG04).');
             }
 
             // 5. RG02 : Concordance durée
@@ -200,9 +192,6 @@ class CreneauService
     /**
      * Supprime un créneau horaire non attribué (RG07, RG17).
      *
-     * @param  User   $intervenant
-     * @param  int    $creneauId
-     * @return bool
      *
      * @throws CompteDesactiveException
      * @throws OffreNonAutoriseeException
@@ -210,15 +199,15 @@ class CreneauService
      */
     public function supprimerCreneau(User $intervenant, int $creneauId): bool
     {
-        if (!$intervenant->isActif()) {
-            throw new CompteDesactiveException("Votre compte est désactivé (RG18).");
+        if (! $intervenant->isActif()) {
+            throw new CompteDesactiveException('Votre compte est désactivé (RG18).');
         }
 
         return DB::transaction(function () use ($intervenant, $creneauId) {
             $creneau = Creneau::with('offre')->where('id', $creneauId)->lockForUpdate()->firstOrFail();
 
             // 1. Autorisation
-            if ((int) $creneau->offre->etudiant_id !== (int) $intervenant->id && !$intervenant->isAdministrateur()) {
+            if ((int) $creneau->offre->etudiant_id !== (int) $intervenant->id && ! $intervenant->isAdministrateur()) {
                 throw new OffreNonAutoriseeException("Vous n'êtes pas autorisé à supprimer ce créneau.");
             }
 
@@ -229,7 +218,11 @@ class CreneauService
                 ->exists();
 
             if ($estOccupe) {
-                throw new CreneauOccupeException("Impossible de supprimer un créneau ayant une réservation confirmée, réalisée ou en litige (RG07, RG17).");
+                throw new CreneauOccupeException('Impossible de supprimer un créneau ayant une réservation confirmée, réalisée ou en litige (RG07, RG17).');
+            }
+
+            if (Reservation::where('creneau_id', $creneau->id)->whereHas('mouvementsCredits')->exists()) {
+                throw new CreneauOccupeException("Ce créneau possède un historique de crédits et doit être conservé. Archivez l'offre pour le retirer du catalogue.");
             }
 
             // 3. RG17 : Annulation automatique des demandes en attente
@@ -275,8 +268,8 @@ class CreneauService
         }
 
         // 1. Chevauchement avec d'autres créneaux proposés par cet intervenant
-        $autresCreneaux = Creneau::whereHas('offre', fn($q) => $q->where('etudiant_id', $userId))
-            ->when($exclureCreneauId, fn($q) => $q->where('id', '!=', $exclureCreneauId))
+        $autresCreneaux = Creneau::whereHas('offre', fn ($q) => $q->where('etudiant_id', $userId))
+            ->when($exclureCreneauId, fn ($q) => $q->where('id', '!=', $exclureCreneauId))
             ->get();
 
         foreach ($autresCreneaux as $autre) {
@@ -297,14 +290,14 @@ class CreneauService
         $reservationsEngagees = Reservation::whereIn('statut', ['acceptee', 'realisee', 'en_litige'])
             ->where(function ($query) use ($userId) {
                 $query->where('beneficiaire_id', $userId)
-                    ->orWhereHas('creneau.offre', fn($q) => $q->where('etudiant_id', $userId));
+                    ->orWhereHas('creneau.offre', fn ($q) => $q->where('etudiant_id', $userId));
             })
             ->with(['creneau.offre'])
             ->get();
 
         foreach ($reservationsEngagees as $res) {
             $c = $res->creneau;
-            if (!$c) {
+            if (! $c) {
                 continue;
             }
             if ($exclureCreneauId && (int) $c->id === (int) $exclureCreneauId) {
@@ -327,9 +320,7 @@ class CreneauService
     /**
      * Récupère le planning consolidé d'un utilisateur (RG08, RG19).
      *
-     * @param  User   $utilisateur
      * @param  array  $filtres  ['a_venir', 'historique', 'statut', 'date_debut', 'date_fin', 'role']
-     * @return array
      */
     public function getPlanning(User $utilisateur, array $filtres = []): array
     {
@@ -344,27 +335,27 @@ class CreneauService
 
         // Filtrage par rôle de l'utilisateur
         if ($roleFiltre === 'intervenant') {
-            $query->whereHas('creneau.offre', fn($q) => $q->where('etudiant_id', $utilisateur->id));
+            $query->whereHas('creneau.offre', fn ($q) => $q->where('etudiant_id', $utilisateur->id));
         } elseif ($roleFiltre === 'beneficiaire') {
             $query->where('beneficiaire_id', $utilisateur->id);
         } else {
             $query->where(function ($q) use ($utilisateur) {
                 $q->where('beneficiaire_id', $utilisateur->id)
-                    ->orWhereHas('creneau.offre', fn($sub) => $sub->where('etudiant_id', $utilisateur->id));
+                    ->orWhereHas('creneau.offre', fn ($sub) => $sub->where('etudiant_id', $utilisateur->id));
             });
         }
 
         // Filtre par statut spécifique
-        if (!empty($filtres['statut'])) {
+        if (! empty($filtres['statut'])) {
             $query->where('statut', $filtres['statut']);
         }
 
         // Filtre par plage de dates
-        if (!empty($filtres['date_debut'])) {
-            $query->whereHas('creneau', fn($q) => $q->where('date', '>=', $filtres['date_debut']));
+        if (! empty($filtres['date_debut'])) {
+            $query->whereHas('creneau', fn ($q) => $q->where('date', '>=', $filtres['date_debut']));
         }
-        if (!empty($filtres['date_fin'])) {
-            $query->whereHas('creneau', fn($q) => $q->where('date', '<=', $filtres['date_fin']));
+        if (! empty($filtres['date_fin'])) {
+            $query->whereHas('creneau', fn ($q) => $q->where('date', '<=', $filtres['date_fin']));
         }
 
         $reservations = $query->get();
@@ -381,7 +372,7 @@ class CreneauService
 
         foreach ($reservations as $res) {
             $creneau = $res->creneau;
-            if (!$creneau) {
+            if (! $creneau) {
                 continue;
             }
 
@@ -396,8 +387,8 @@ class CreneauService
             $estCommence = $maintenant->greaterThanOrEqualTo($debutSeance);
 
             // Filtres temporels avancés
-            $aVenir = (!empty($filtres['a_venir']) && filter_var($filtres['a_venir'], FILTER_VALIDATE_BOOLEAN)) || (($filtres['filtre'] ?? '') === 'a_venir');
-            $historique = (!empty($filtres['historique']) && filter_var($filtres['historique'], FILTER_VALIDATE_BOOLEAN)) || (($filtres['filtre'] ?? '') === 'historique');
+            $aVenir = (! empty($filtres['a_venir']) && filter_var($filtres['a_venir'], FILTER_VALIDATE_BOOLEAN)) || (($filtres['filtre'] ?? '') === 'a_venir');
+            $historique = (! empty($filtres['historique']) && filter_var($filtres['historique'], FILTER_VALIDATE_BOOLEAN)) || (($filtres['filtre'] ?? '') === 'historique');
 
             if ($aVenir) {
                 if ($estPasse || in_array($res->statut, ['realisee', 'annulee', 'refusee'])) {
@@ -406,7 +397,7 @@ class CreneauService
             }
 
             if ($historique) {
-                if (!$estPasse && !in_array($res->statut, ['realisee', 'annulee', 'refusee'])) {
+                if (! $estPasse && ! in_array($res->statut, ['realisee', 'annulee', 'refusee'])) {
                     continue;
                 }
             }
@@ -421,28 +412,28 @@ class CreneauService
 
             // Calcul des indicateurs d'actions possibles
             $peutAnnuler = false;
-            if ($res->statut === 'en_attente' && !$isIntervenant) {
+            if ($res->statut === 'en_attente' && ! $isIntervenant) {
                 $peutAnnuler = true; // Retrait bénéficiaire
             } elseif ($res->statut === 'acceptee' && $maintenant->lessThan($debutSeance)) {
                 $peutAnnuler = true; // Annulation pré-séance (RG10)
             }
 
             $peutConfirmer = false;
-            if ($res->statut === 'acceptee' && $estPasse && !$res->litige) {
-                if ($isIntervenant && !$res->confirmation_intervenant) {
+            if ($res->statut === 'acceptee' && $estPasse && ! $res->litige) {
+                if ($isIntervenant && ! $res->confirmation_intervenant) {
                     $peutConfirmer = true;
-                } elseif (!$isIntervenant && !$res->confirmation_beneficiaire) {
+                } elseif (! $isIntervenant && ! $res->confirmation_beneficiaire) {
                     $peutConfirmer = true;
                 }
             }
 
             $peutOuvrirLitige = false;
-            if ($res->statut === 'acceptee' && $estCommence && !$res->litige) {
+            if ($res->statut === 'acceptee' && $estCommence && ! $res->litige) {
                 $peutOuvrirLitige = true;
             }
 
             $peutEvaluer = false;
-            if ($res->statut === 'realisee' && !isset($evaluationsRedigees[$res->id])) {
+            if ($res->statut === 'realisee' && ! isset($evaluationsRedigees[$res->id])) {
                 $peutEvaluer = true;
             }
 
@@ -489,6 +480,7 @@ class CreneauService
         usort($planning, function ($a, $b) {
             $tA = "{$a['creneau']['date']} {$a['creneau']['heure_debut']}";
             $tB = "{$b['creneau']['date']} {$b['creneau']['heure_debut']}";
+
             return strcmp($tA, $tB);
         });
 

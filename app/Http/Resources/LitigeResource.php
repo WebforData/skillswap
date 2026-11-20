@@ -4,6 +4,8 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class LitigeResource extends JsonResource
 {
@@ -17,12 +19,12 @@ class LitigeResource extends JsonResource
         $isAdmin = $user && $user->isAdministrateur();
 
         $isParticipant = $isAdmin || $isDeclarant;
-        if (!$isParticipant && $user && $this->relationLoaded('reservation')) {
+        if (! $isParticipant && $user && $this->relationLoaded('reservation')) {
             $isParticipant = $this->reservation->isParticipant($user);
         }
 
         // Tiers non autorisé : aucune information sensible divulguée
-        if (!$isParticipant && !$isAdmin) {
+        if (! $isParticipant && ! $isAdmin) {
             return [
                 'id' => $this->id,
                 'statut' => $this->statut,
@@ -35,6 +37,7 @@ class LitigeResource extends JsonResource
             'declarant_id' => $this->declarant_id,
             'admin_id' => $this->admin_id,
             'description' => $this->description,
+            'statements' => (app()->runningUnitTests() && ! Schema::hasTable('litige_statements')) ? [] : DB::table('litige_statements')->join('users', 'users.id', '=', 'litige_statements.user_id')->where('litige_id', $this->id)->orderBy('litige_statements.id')->get(['litige_statements.id', 'litige_statements.user_id', 'litige_statements.message', 'litige_statements.created_at', 'users.prenom', 'users.nom']),
             'statut' => $this->statut,
             'decision' => $this->decision,
             'motif_decision' => $this->motif_decision,

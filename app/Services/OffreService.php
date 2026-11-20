@@ -19,20 +19,17 @@ class OffreService
     /**
      * Crée une nouvelle offre de compétence pour un intervenant (RG04).
      *
-     * @param  User   $intervenant
-     * @param  array  $data
-     * @return Offre
      *
      * @throws CompteDesactiveException
      */
     public function creerOffre(User $intervenant, array $data): Offre
     {
         // RG18 : Seul un compte actif peut créer une offre
-        if (!$intervenant->isActif()) {
-            throw new CompteDesactiveException("Votre compte est désactivé (RG18). Impossible de créer une offre.");
+        if (! $intervenant->isActif()) {
+            throw new CompteDesactiveException('Votre compte est désactivé (RG18). Impossible de créer une offre.');
         }
 
-        $offre = new Offre();
+        $offre = new Offre;
         $offre->forceFill([
             'etudiant_id' => $intervenant->id,
             'categorie_id' => (int) $data['categorie_id'],
@@ -52,10 +49,6 @@ class OffreService
     /**
      * Modifie une offre existante (propriétaire ou administrateur).
      *
-     * @param  User   $intervenant
-     * @param  int    $offreId
-     * @param  array  $data
-     * @return Offre
      *
      * @throws CompteDesactiveException
      * @throws OffreNonAutoriseeException
@@ -64,21 +57,21 @@ class OffreService
      */
     public function modifierOffre(User $intervenant, int $offreId, array $data): Offre
     {
-        if (!$intervenant->isActif()) {
-            throw new CompteDesactiveException("Votre compte est désactivé (RG18). Impossible de modifier une offre.");
+        if (! $intervenant->isActif()) {
+            throw new CompteDesactiveException('Votre compte est désactivé (RG18). Impossible de modifier une offre.');
         }
 
         return DB::transaction(function () use ($intervenant, $offreId, $data) {
             $offre = Offre::where('id', $offreId)->lockForUpdate()->firstOrFail();
 
             // Vérification des droits : Seul le propriétaire ou un administrateur peut modifier
-            if (!$intervenant->isAdministrateur() && (int) $offre->etudiant_id !== (int) $intervenant->id) {
+            if (! $intervenant->isAdministrateur() && (int) $offre->etudiant_id !== (int) $intervenant->id) {
                 throw new OffreNonAutoriseeException("Vous n'êtes pas autorisé à modifier cette offre.");
             }
 
             // RG17 : Une offre archivée ne peut plus être modifiée
             if ($offre->statut === 'archivee') {
-                throw new OffreStatutInvalideException("Une offre archivée ne peut plus être modifiée (RG17).");
+                throw new OffreStatutInvalideException('Une offre archivée ne peut plus être modifiée (RG17).');
             }
 
             // RG02 : Vérification de la compatibilité de durée avec les créneaux existants
@@ -86,6 +79,7 @@ class OffreService
                 $nouvelleDureeMinutes = (int) $data['duree'] * 60;
                 $creneauxIncompatibles = Creneau::where('offre_id', $offre->id)->get()->filter(function ($creneau) use ($nouvelleDureeMinutes) {
                     $dureeReelle = Carbon::parse($creneau->heure_debut)->diffInMinutes(Carbon::parse($creneau->heure_fin));
+
                     return $dureeReelle !== $nouvelleDureeMinutes;
                 });
 
@@ -133,19 +127,19 @@ class OffreService
      */
     public function publierOffre(User $intervenant, int $offreId): Offre
     {
-        if (!$intervenant->isActif()) {
-            throw new CompteDesactiveException("Votre compte est désactivé (RG18).");
+        if (! $intervenant->isActif()) {
+            throw new CompteDesactiveException('Votre compte est désactivé (RG18).');
         }
 
         return DB::transaction(function () use ($intervenant, $offreId) {
             $offre = Offre::where('id', $offreId)->lockForUpdate()->firstOrFail();
 
-            if (!$intervenant->isAdministrateur() && (int) $offre->etudiant_id !== (int) $intervenant->id) {
+            if (! $intervenant->isAdministrateur() && (int) $offre->etudiant_id !== (int) $intervenant->id) {
                 throw new OffreNonAutoriseeException("Vous n'êtes pas autorisé à publier cette offre.");
             }
 
             if ($offre->statut === 'archivee') {
-                throw new OffreStatutInvalideException("Une offre archivée ne peut plus être republiée (RG17).");
+                throw new OffreStatutInvalideException('Une offre archivée ne peut plus être republiée (RG17).');
             }
 
             $offre->statut = 'publiee';
@@ -160,23 +154,24 @@ class OffreService
      */
     public function passerEnBrouillon(User $intervenant, int $offreId): Offre
     {
-        if (!$intervenant->isActif()) {
-            throw new CompteDesactiveException("Votre compte est désactivé (RG18).");
+        if (! $intervenant->isActif()) {
+            throw new CompteDesactiveException('Votre compte est désactivé (RG18).');
         }
 
         return DB::transaction(function () use ($intervenant, $offreId) {
             $offre = Offre::where('id', $offreId)->lockForUpdate()->firstOrFail();
 
-            if (!$intervenant->isAdministrateur() && (int) $offre->etudiant_id !== (int) $intervenant->id) {
+            if (! $intervenant->isAdministrateur() && (int) $offre->etudiant_id !== (int) $intervenant->id) {
                 throw new OffreNonAutoriseeException("Vous n'êtes pas autorisé à modifier cette offre.");
             }
 
             if ($offre->statut === 'archivee') {
-                throw new OffreStatutInvalideException("Une offre archivée ne peut pas être repassée en brouillon (RG17).");
+                throw new OffreStatutInvalideException('Une offre archivée ne peut pas être repassée en brouillon (RG17).');
             }
 
             $offre->statut = 'brouillon';
             $offre->save();
+            Reservation::whereHas('creneau', fn ($q) => $q->where('offre_id', $offre->id))->where('statut', 'en_attente')->lockForUpdate()->get()->each(fn ($r) => $r->forceFill(['statut' => 'annulee', 'motif_refus' => 'Offre retirée du catalogue.'])->save());
 
             return $offre->fresh(['categorie', 'intervenant']);
         });
@@ -193,7 +188,7 @@ class OffreService
      */
     public function archiverOffre(User $utilisateur, int $offreId): Offre
     {
-        if (!$utilisateur->isActif()) {
+        if (! $utilisateur->isActif()) {
             throw new CompteDesactiveException("Votre compte est désactivé (RG18). Impossible d'archiver cette offre.");
         }
 
@@ -201,7 +196,7 @@ class OffreService
             $offre = Offre::where('id', $offreId)->lockForUpdate()->firstOrFail();
 
             // Vérification des droits
-            if (!$utilisateur->isAdministrateur() && (int) $offre->etudiant_id !== (int) $utilisateur->id) {
+            if (! $utilisateur->isAdministrateur() && (int) $offre->etudiant_id !== (int) $utilisateur->id) {
                 throw new OffreNonAutoriseeException("Vous n'êtes pas autorisé à archiver cette offre (RG17).");
             }
 
@@ -250,7 +245,7 @@ class OffreService
             ]);
 
         // Filtre par mot-clé (titre, compétence, description)
-        if (!empty($filtres['q'])) {
+        if (! empty($filtres['q'])) {
             $q = trim($filtres['q']);
             $query->where(function ($sub) use ($q) {
                 $sub->where('titre', 'LIKE', "%{$q}%")
@@ -260,23 +255,27 @@ class OffreService
         }
 
         // Filtre par catégorie
-        if (!empty($filtres['categorie_id'])) {
+        if (! empty($filtres['categorie_id'])) {
             $query->where('categorie_id', (int) $filtres['categorie_id']);
         }
 
         // Filtre par niveau
-        if (!empty($filtres['niveau']) && in_array($filtres['niveau'], ['debutant', 'intermediaire', 'avance'])) {
+        if (! empty($filtres['niveau']) && in_array($filtres['niveau'], ['debutant', 'intermediaire', 'avance'])) {
             $query->where('niveau', $filtres['niveau']);
         }
 
         // Filtre par mode
-        if (!empty($filtres['mode']) && in_array($filtres['mode'], ['presentiel', 'distanciel'])) {
+        if (! empty($filtres['mode']) && in_array($filtres['mode'], ['presentiel', 'distanciel'])) {
             $query->where('mode', $filtres['mode']);
         }
 
         // Filtre par durée (1 ou 2)
-        if (!empty($filtres['duree']) && in_array((int) $filtres['duree'], [1, 2])) {
+        if (! empty($filtres['duree']) && in_array((int) $filtres['duree'], [1, 2])) {
             $query->where('duree', (int) $filtres['duree']);
+        }
+
+        if (! empty($filtres['date'])) {
+            $query->whereHas('creneaux', fn ($q) => $q->futurs()->disponibles()->whereDate('date', $filtres['date']));
         }
 
         return $query->latest()->paginate($perPage);
@@ -297,9 +296,6 @@ class OffreService
     /**
      * Consulte le détail d'une offre (avec contrôle de visibilité RG04/RG19).
      *
-     * @param  int        $id
-     * @param  User|null  $visiteur
-     * @return Offre
      *
      * @throws OffreNonAutoriseeException
      */
@@ -320,7 +316,7 @@ class OffreService
                 (int) $offre->etudiant_id === (int) $visiteur->id
             );
 
-            if (!$autorise) {
+            if (! $autorise) {
                 throw new OffreNonAutoriseeException("Cette offre n'est plus accessible au public.");
             }
         }

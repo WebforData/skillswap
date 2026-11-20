@@ -29,13 +29,25 @@ Route::prefix('auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login'])->name('api.auth.login');
 });
 
+use App\Http\Controllers\Api\Admin\AdminReservationController;
+use App\Http\Controllers\Api\StudentController;
+
+Route::get('/categories', [StudentController::class, 'categories']);
+
 // Routes publiques de consultation
 Route::get('/offres', [OffreController::class, 'index'])->name('api.offres.index');
 Route::get('/offres/{id}', [OffreController::class, 'show'])->whereNumber('id')->name('api.offres.show');
+Route::get('/users/{id}/evaluations', [EvaluationController::class, 'publicReviews'])->whereNumber('id');
 Route::get('/users/{id}/evaluations/stats', [EvaluationController::class, 'getStats'])->whereNumber('id')->name('api.users.evaluations.stats');
 
 // Routes protégées par Sanctum (authentification obligatoire + vérification compte actif RG18)
 Route::middleware(['auth:sanctum', 'auth.active'])->group(function () {
+    Route::put('/auth/profile', [StudentController::class, 'updateProfile']);
+    Route::get('/wallet/history', [StudentController::class, 'wallet']);
+    Route::get('/suggestions', [StudentController::class, 'suggestions']);
+    Route::get('/notifications', [StudentController::class, 'notifications']);
+    Route::patch('/notifications/{id}/read', [StudentController::class, 'readNotification'])->whereNumber('id');
+
     // Authentification & profil
     Route::prefix('auth')->group(function () {
         Route::post('/logout', [AuthController::class, 'logout'])->name('api.auth.logout');
@@ -54,6 +66,9 @@ Route::middleware(['auth:sanctum', 'auth.active'])->group(function () {
         Route::post('/{id}/confirmer', [ReservationController::class, 'confirmer'])->name('api.reservations.confirmer');
         Route::post('/{id}/litige', [ReservationController::class, 'ouvrirLitige'])->name('api.reservations.litige');
     });
+
+    Route::get('/mes-litiges', [LitigeController::class, 'mine']);
+    Route::post('/litiges/{id}/statements', [LitigeController::class, 'statement'])->whereNumber('id');
 
     // Arbitrage administratif des litiges (RG13, RG14)
     Route::prefix('litiges')->group(function () {
@@ -93,6 +108,8 @@ Route::middleware(['auth:sanctum', 'auth.active'])->group(function () {
     // BACK-OFFICE ADMINISTRATEUR (RG18, RG17, Modération, Statistiques)
     // =========================================================================
     Route::prefix('admin')->middleware('admin')->group(function () {
+        Route::get('/reservations', [AdminReservationController::class, 'index']);
+        Route::post('/reservations/{id}/settle', [AdminReservationController::class, 'settle'])->whereNumber('id');
         // Utilisateurs (RG18)
         Route::prefix('users')->group(function () {
             Route::get('/', [AdminUserController::class, 'index'])->name('api.admin.users.index');

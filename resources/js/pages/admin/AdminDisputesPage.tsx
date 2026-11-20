@@ -374,6 +374,7 @@ export const AdminDisputesPage: React.FC = () => {
                             <p className="text-slate-800 text-sm leading-relaxed whitespace-pre-wrap font-medium">
                                 "{selectedLitige.description}"
                             </p>
+                                {selectedLitige.statements?.map(s => <div key={s.id} className="mt-3 border-t pt-3 not-italic"><strong>{s.prenom} {s.nom}</strong><p className="whitespace-pre-wrap">{s.message}</p></div>)}
                             <p className="text-[11px] text-slate-500">
                                 Déposé par : <strong>{selectedLitige.declarant?.prenom} {selectedLitige.declarant?.nom}</strong> ({selectedLitige.declarant?.email})
                             </p>

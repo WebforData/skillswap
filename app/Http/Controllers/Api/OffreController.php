@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\OffreCreationRequest;
 use App\Http\Requests\OffreUpdateRequest;
+use App\Http\Resources\CreneauResource;
+use App\Http\Resources\OffreResource;
 use App\Services\OffreService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -36,6 +38,8 @@ class OffreController extends Controller
         $perPage = (int) $request->query('per_page', 10);
         $offres = $this->offreService->getMesOffres($intervenant, $perPage);
 
+        $offres->setCollection($offres->getCollection()->map(fn ($offre) => (new OffreResource($offre))->resolve($request)));
+
         return response()->json($offres);
     }
 
@@ -46,10 +50,11 @@ class OffreController extends Controller
     {
         $visiteur = $request->user('sanctum');
         $offre = $this->offreService->getOffre($id, $visiteur);
+        $request->setUserResolver(fn () => $visiteur);
+        $data = $offre->toArray();
+        $data['creneaux'] = $offre->creneaux->map(fn ($slot) => (new CreneauResource($slot))->resolve($request));
 
-        return response()->json([
-            'offre' => $offre,
-        ]);
+        return response()->json(['offre' => $data]);
     }
 
     /**

@@ -2,7 +2,7 @@
  * Tests Unitaires & Intégration Frontend — Réservations & Litiges (ReservationsPage)
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { ReservationsPage } from '../../pages/student/ReservationsPage';
@@ -146,7 +146,11 @@ const renderReservationsPage = () => {
 };
 
 describe('ReservationsPage', () => {
+    afterEach(() => { vi.useRealTimers(); });
+
     beforeEach(() => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-11-20T12:00:00'));
         vi.clearAllMocks();
         vi.mocked(reservationsApi.getMesReservations).mockResolvedValue({
             total: 2,
@@ -260,6 +264,7 @@ describe('ReservationsPage', () => {
     });
 
     it('gère la confirmation post-séance selon RG11 (bilatérale)', async () => {
+        vi.setSystemTime(new Date('2026-11-29T12:00:00'));
         vi.mocked(reservationsApi.confirmer).mockResolvedValue({
             message: 'Séance confirmée',
             cloturee: true, // Le bénéficiaire avait déjà confirmé, donc clôture + transfert !
@@ -283,6 +288,7 @@ describe('ReservationsPage', () => {
     });
 
     it('ouvre un litige sur une séance acceptée avec description explicative (RG12)', async () => {
+        vi.setSystemTime(new Date('2026-11-29T12:00:00'));
         vi.mocked(reservationsApi.declarerLitige).mockResolvedValue({
             message: 'Litige ouvert',
             litige: {

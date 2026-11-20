@@ -2,18 +2,19 @@
 
 namespace Tests\Unit;
 
-use Tests\TestCase;
-use App\Models\User;
-use App\Models\Portefeuille;
 use App\Models\Categorie;
-use App\Models\Offre;
 use App\Models\Creneau;
-use App\Models\Reservation;
-use App\Models\MouvementCredit;
 use App\Models\Evaluation;
 use App\Models\Litige;
-use Illuminate\Support\Facades\Schema;
+use App\Models\MouvementCredit;
+use App\Models\Offre;
+use App\Models\Portefeuille;
+use App\Models\Reservation;
+use App\Models\User;
+use Illuminate\Database\Eloquent\MassAssignmentException;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+use Tests\TestCase;
 
 class SecurityAndDatabaseRelationsTest extends TestCase
 {
@@ -180,7 +181,7 @@ class SecurityAndDatabaseRelationsTest extends TestCase
 
         // 3. Catégorie et Offre
         $categorie = Categorie::create(['nom' => 'Informatique']);
-        
+
         $offre = new Offre([
             'categorie_id' => $categorie->id,
             'titre' => 'Initiation Python',
@@ -232,7 +233,7 @@ class SecurityAndDatabaseRelationsTest extends TestCase
         $this->assertFalse($reservation->isIntervenant($beneficiaire));
 
         // 6. Mouvement de crédits
-        $mvt = new MouvementCredit();
+        $mvt = new MouvementCredit;
         $mvt->forceFill([
             'portefeuille_id' => $portefeuilleSara->id,
             'reservation_id' => $reservation->id,
@@ -309,12 +310,12 @@ class SecurityAndDatabaseRelationsTest extends TestCase
             'statut' => 'realisee',             // INJECTION
             'cout_credits' => 0,                // INJECTION
             'confirmation_intervenant' => true, // INJECTION
-            'confirmation_beneficiaire' => true,// INJECTION
+            'confirmation_beneficiaire' => true, // INJECTION
         ]);
         $this->assertNull($res->beneficiaire_id, 'beneficiaire_id ne doit pas être assignable par mass-assignment.');
         $this->assertEquals('en_attente', $res->statut, 'Le statut ne doit pas être falsifiable.');
-        $this->assertFalse((bool)$res->confirmation_intervenant);
-        $this->assertFalse((bool)$res->confirmation_beneficiaire);
+        $this->assertFalse((bool) $res->confirmation_intervenant);
+        $this->assertFalse((bool) $res->confirmation_beneficiaire);
 
         // D. Protection de l'auteur et de la cible sur Evaluation
         $eval = new Evaluation([
@@ -346,9 +347,9 @@ class SecurityAndDatabaseRelationsTest extends TestCase
                 'quantite' => 1000,
                 'type' => 'bienvenue',
             ]);
-            $this->fail("MouvementCredit aurait dû lever une MassAssignmentException.");
-        } catch (\Illuminate\Database\Eloquent\MassAssignmentException $e) {
-            $this->assertTrue(true, "Mass-assignment strictement interdit sur MouvementCredit.");
+            $this->fail('MouvementCredit aurait dû lever une MassAssignmentException.');
+        } catch (MassAssignmentException $e) {
+            $this->assertTrue(true, 'Mass-assignment strictement interdit sur MouvementCredit.');
         }
 
         // G. Protection absolue des soldes sur Portefeuille
@@ -384,18 +385,18 @@ class SecurityAndDatabaseRelationsTest extends TestCase
         $this->assertArrayNotHasKey('lien_ou_lieu_prive', $json, 'Le lien privé doit être absent du toArray/JSON.');
 
         // 2. Vérification des droits d'accès programmatiques
-        $intervenant = new User();
+        $intervenant = new User;
         $intervenant->id = 10;
 
-        $tiers = new User();
+        $tiers = new User;
         $tiers->id = 99;
 
-        $admin = new User();
+        $admin = new User;
         $admin->id = 1;
         $admin->role = 'administrateur';
 
         $this->assertTrue($creneau->peutAccederAuxDetailsPrives($intervenant));
-        $this->assertTrue($creneau->peutAccederAuxDetailsPrives($admin));
+        $this->assertFalse($creneau->peutAccederAuxDetailsPrives($admin));
         $this->assertFalse($creneau->peutAccederAuxDetailsPrives($tiers));
 
         $this->assertEquals('https://meet.google.com/prive-secret-xyz', $creneau->getLieuOuLienSecurise($intervenant));

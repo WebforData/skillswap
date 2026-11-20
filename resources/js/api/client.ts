@@ -84,10 +84,8 @@ apiClient.interceptors.response.use(
     (error: AxiosError<ApiErrorResponse>) => {
         if (!error.response) {
             // Erreur réseau ou serveur inaccessible
-            return Promise.reject({
-                message: "Impossible de joindre le serveur. Veuillez vérifier votre connexion.",
-                statusCode: 0,
-            });
+            error.message = "Impossible de joindre le serveur. Veuillez vérifier votre connexion.";
+            return Promise.reject(error);
         }
 
         const status = error.response.status;
@@ -145,14 +143,14 @@ apiClient.interceptors.response.use(
 
             case 500: {
                 // Erreur interne serveur : message générique sans exposer de stacktrace
-                return Promise.reject({
-                    message: "Une erreur interne est survenue sur le serveur. Veuillez réessayer plus tard.",
-                    statusCode: 500,
-                });
+                error.message = "Une erreur interne est survenue sur le serveur. Veuillez réessayer plus tard.";
+                error.response.data = { message: error.message, statusCode: 500 };
+                return Promise.reject(error);
             }
         }
 
-        return Promise.reject(data || { message: "Une erreur est survenue.", statusCode: status });
+        // Keep the Axios response so forms can display validation and business errors.
+        return Promise.reject(error);
     }
 );
 

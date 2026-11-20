@@ -14,9 +14,11 @@ use App\Exceptions\SoldeInsuffisantPourReservationException;
 use App\Exceptions\StatutReservationInvalideException;
 use App\Models\Creneau;
 use App\Models\Litige;
+use App\Models\Offre;
 use App\Models\Reservation;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 
 class ReservationService
@@ -28,9 +30,6 @@ class ReservationService
     /**
      * Crée une nouvelle demande de réservation en attente (RG02 à RG05, RG08, RG18).
      *
-     * @param  User  $beneficiaire
-     * @param  int   $creneauId
-     * @return Reservation
      *
      * @throws CompteDesactiveException
      * @throws CreneauIndisponibleException
@@ -51,9 +50,10 @@ class ReservationService
                 ->firstOrFail();
 
             $creneau->load('offre.intervenant');
-            $offre = $creneau->offre;
+            $offre = Offre::whereKey($creneau->offre_id)->lockForUpdate()->first();
+            $offre?->load('intervenant');
 
-            if (!$offre) {
+            if (! $offre) {
                 throw new OffreInvalideException("L'offre associée au créneau est introuvable.");
             }
 
@@ -63,7 +63,7 @@ class ReservationService
             }
 
             // RG18 : Vérifier que le compte de l'intervenant est actif
-            if (!$offre->intervenant || !$offre->intervenant->isActif()) {
+            if (! $offre->intervenant || ! $offre->intervenant->isActif()) {
                 throw new OffreInvalideException("Le compte de l'intervenant est désactivé (RG18).");
             }
 
@@ -85,7 +85,7 @@ class ReservationService
 
             // RG03 : Interdiction formelle de réserver sa propre offre
             if ((int) $offre->etudiant_id === (int) $beneficiaire->id) {
-                throw new AutoReservationException("Un étudiant ne peut pas réserver sa propre offre (RG03).");
+                throw new AutoReservationException('Un étudiant ne peut pas réserver sa propre offre (RG03).');
             }
 
             // RG03 : Empêcher une double demande active sur le même créneau
@@ -95,7 +95,7 @@ class ReservationService
                 ->exists();
 
             if ($demandeActive) {
-                throw new AutoReservationException("Vous avez déjà une demande active pour ce créneau (RG03).");
+                throw new AutoReservationException('Vous avez déjà une demande active pour ce créneau (RG03).');
             }
 
             // RG08 : Contrôle préventif des conflits d'horaires pour le bénéficiaire
@@ -103,12 +103,12 @@ class ReservationService
 
             // RG02 & RG05 : Vérification du solde disponible (AUCUN blocage à ce stade)
             $coutCredits = (int) $offre->duree;
-            if (!$this->creditService->verifierSoldeDisponible($beneficiaire, $coutCredits)) {
+            if (! $this->creditService->verifierSoldeDisponible($beneficiaire, $coutCredits)) {
                 throw new SoldeInsuffisantPourReservationException("Votre solde disponible est insuffisant pour demander cette séance de {$coutCredits} crédit(s) (RG05).");
             }
 
             // Création de la réservation au statut 'en_attente'
-            $reservation = new Reservation();
+            $reservation = new Reservation;
             $reservation->forceFill([
                 'creneau_id' => $creneau->id,
                 'beneficiaire_id' => $beneficiaire->id,
@@ -130,9 +130,6 @@ class ReservationService
     /**
      * Accepte une demande de réservation, bloque les crédits et rejette les demandes concurrentes (RG06, RG07, RG08).
      *
-     * @param  User  $intervenant
-     * @param  int   $reservationId
-     * @return Reservation
      *
      * @throws CompteDesactiveException
      * @throws AccesReservationNonAutoriseException
@@ -144,8 +141,16 @@ class ReservationService
     {
         $this->verifierCompteActif($intervenant);
 
-        return DB::transaction(function () use ($intervenant, $reservationId) {
-            // Identifier le créneau pour verrouiller Creneau en PREMIER (Ordre canonique 1)
+        // Read identifiers before the transaction so a waiting acceptance does not retain an older snapshot.
+        $candidate = Reservation::findOrFail($reservationId);
+
+        return DB::transaction(function () use ($intervenant, $reservationId, $candidate) {
+            // Shared participant locks serialize acceptances for different slots (RG08).
+            $participants = User::whereIn('id', [$intervenant->id, $candidate->beneficiaire_id])->orderBy('id')->lockForUpdate()->get();
+            foreach ($participants as $person) {
+                $this->verifierCompteActif($person);
+            }
+            // Verrouiller ensuite le créneau puis la réservation.
             $preload = Reservation::findOrFail($reservationId);
             $lockedCreneau = Creneau::where('id', $preload->creneau_id)
                 ->lockForUpdate()
@@ -157,9 +162,12 @@ class ReservationService
                 ->firstOrFail();
 
             $lockedReservation->load('creneau.offre.intervenant', 'beneficiaire');
+            if ($lockedReservation->creneau->offre->statut !== 'publiee') {
+                throw new OffreInvalideException("Cette offre n'est plus publiée.");
+            }
 
             // Vérifier que l'utilisateur connecté est bien l'intervenant légitime
-            if (!$lockedReservation->isIntervenant($intervenant)) {
+            if (! $lockedReservation->isIntervenant($intervenant)) {
                 throw new AccesReservationNonAutoriseException("Seul l'intervenant de l'offre peut accepter cette demande.");
             }
 
@@ -175,7 +183,7 @@ class ReservationService
                 ->exists();
 
             if ($creneauDejaAttribue) {
-                throw new CreneauIndisponibleException("Ce créneau est déjà attribué à une autre réservation (RG07).");
+                throw new CreneauIndisponibleException('Ce créneau est déjà attribué à une autre réservation (RG07).');
             }
 
             // RG04 : Vérifier que la séance n'est pas déjà commencée
@@ -200,11 +208,11 @@ class ReservationService
             Reservation::where('creneau_id', $lockedCreneau->id)
                 ->where('id', '!=', $lockedReservation->id)
                 ->where('statut', 'en_attente')
-                ->update([
+                ->get()->each(fn ($other) => $other->forceFill([
                     'statut' => 'refusee',
                     'motif_refus' => 'Créneau déjà attribué (RG07)',
                     'updated_at' => now(),
-                ]);
+                ])->save());
 
             return $lockedReservation->fresh(['creneau.offre.intervenant', 'beneficiaire']);
         }, 3);
@@ -213,10 +221,7 @@ class ReservationService
     /**
      * Refuse une demande en attente avec un motif explicite (RG09).
      *
-     * @param  User    $intervenant
-     * @param  int     $reservationId
      * @param  string? $motif
-     * @return Reservation
      *
      * @throws CompteDesactiveException
      * @throws AccesReservationNonAutoriseException
@@ -231,7 +236,7 @@ class ReservationService
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            if (!$lockedReservation->isIntervenant($intervenant)) {
+            if (! $lockedReservation->isIntervenant($intervenant)) {
                 throw new AccesReservationNonAutoriseException("Seul l'intervenant de l'offre peut refuser cette demande.");
             }
 
@@ -250,9 +255,6 @@ class ReservationService
     /**
      * Permet au demandeur de retirer sa réservation tant qu'elle est en attente (RG09).
      *
-     * @param  User  $beneficiaire
-     * @param  int   $reservationId
-     * @return Reservation
      *
      * @throws CompteDesactiveException
      * @throws AccesReservationNonAutoriseException
@@ -267,8 +269,8 @@ class ReservationService
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            if (!$lockedReservation->isBeneficiaire($beneficiaire)) {
-                throw new AccesReservationNonAutoriseException("Seul le bénéficiaire peut retirer sa propre demande en attente.");
+            if (! $lockedReservation->isBeneficiaire($beneficiaire)) {
+                throw new AccesReservationNonAutoriseException('Seul le bénéficiaire peut retirer sa propre demande en attente.');
             }
 
             if ($lockedReservation->statut !== 'en_attente') {
@@ -276,7 +278,7 @@ class ReservationService
             }
 
             $lockedReservation->statut = 'annulee';
-            $lockedReservation->motif_refus = "Demande retirée par le bénéficiaire (RG09).";
+            $lockedReservation->motif_refus = 'Demande retirée par le bénéficiaire (RG09).';
             $lockedReservation->save();
 
             return $lockedReservation->fresh(['creneau.offre.intervenant', 'beneficiaire']);
@@ -286,10 +288,7 @@ class ReservationService
     /**
      * Annule une réservation acceptée avant le début de la séance et libère les crédits (RG10).
      *
-     * @param  User    $participant
-     * @param  int     $reservationId
      * @param  string? $motif
-     * @return Reservation
      *
      * @throws CompteDesactiveException
      * @throws AccesReservationNonAutoriseException
@@ -315,7 +314,7 @@ class ReservationService
             $lockedReservation->load('creneau.offre.intervenant', 'beneficiaire');
 
             // Vérifier que l'utilisateur est soit le bénéficiaire, soit l'intervenant, soit un admin
-            if (!$lockedReservation->isParticipant($participant) && !$participant->isAdministrateur()) {
+            if (! $lockedReservation->isParticipant($participant) && ! $participant->isAdministrateur()) {
                 throw new AccesReservationNonAutoriseException("Seul un participant à la séance ou un administrateur peut l'annuler.");
             }
 
@@ -346,9 +345,6 @@ class ReservationService
     /**
      * Enregistre la confirmation d'un participant post-séance et déclenche le transfert lors de la 2ème confirmation (RG11, RG12, RG14).
      *
-     * @param  User  $participant
-     * @param  int   $reservationId
-     * @return Reservation
      *
      * @throws CompteDesactiveException
      * @throws AccesReservationNonAutoriseException
@@ -374,8 +370,8 @@ class ReservationService
             $lockedReservation->load('creneau.offre.intervenant', 'beneficiaire');
 
             // Vérifier la légitimité du participant
-            if (!$lockedReservation->isParticipant($participant)) {
-                throw new AccesReservationNonAutoriseException("Seuls les participants à la séance peuvent confirmer sa réalisation (RG11).");
+            if (! $lockedReservation->isParticipant($participant)) {
+                throw new AccesReservationNonAutoriseException('Seuls les participants à la séance peuvent confirmer sa réalisation (RG11).');
             }
 
             // Seule une réservation acceptée peut recevoir une confirmation
@@ -399,17 +395,17 @@ class ReservationService
                 ->exists();
 
             if ($litigeOuvert) {
-                throw new ConfirmationSeanceException("Confirmation impossible : un litige est actuellement ouvert pour cette réservation (RG12).");
+                throw new ConfirmationSeanceException('Confirmation impossible : un litige est actuellement ouvert pour cette réservation (RG12).');
             }
 
             // Enregistrer la confirmation respective (une seule fois de manière idempotente)
             if ($lockedReservation->isBeneficiaire($participant)) {
-                if (!$lockedReservation->confirmation_beneficiaire) {
+                if (! $lockedReservation->confirmation_beneficiaire) {
                     $lockedReservation->confirmation_beneficiaire = true;
                     $lockedReservation->date_confirmation_beneficiaire = now();
                 }
             } elseif ($lockedReservation->isIntervenant($participant)) {
-                if (!$lockedReservation->confirmation_intervenant) {
+                if (! $lockedReservation->confirmation_intervenant) {
                     $lockedReservation->confirmation_intervenant = true;
                     $lockedReservation->date_confirmation_intervenant = now();
                 }
@@ -440,10 +436,6 @@ class ReservationService
      * Ouvre un litige sur une réservation acceptée après le début de séance (RG12, RG13, RG14).
      * Les crédits demeurent sous séquestre jusqu'à décision arbitrale de l'administrateur.
      *
-     * @param  User    $declarant
-     * @param  int     $reservationId
-     * @param  string  $description
-     * @return Litige
      *
      * @throws CompteDesactiveException
      * @throws AccesReservationNonAutoriseException
@@ -465,8 +457,8 @@ class ReservationService
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            if (!$lockedReservation->isParticipant($declarant)) {
-                throw new AccesReservationNonAutoriseException("Seul un participant légitime à la séance peut ouvrir un litige.");
+            if (! $lockedReservation->isParticipant($declarant)) {
+                throw new AccesReservationNonAutoriseException('Seul un participant légitime à la séance peut ouvrir un litige.');
             }
 
             // Statut de la réservation : doit être 'acceptee'
@@ -478,13 +470,13 @@ class ReservationService
             $dateStr = is_string($lockedCreneau->date) ? $lockedCreneau->date : $lockedCreneau->date->format('Y-m-d');
             $debutSeance = Carbon::parse("{$dateStr} {$lockedCreneau->heure_debut}");
             if (now()->lessThan($debutSeance)) {
-                throw new StatutReservationInvalideException("Un litige ne peut pas être ouvert avant le début de la séance. Une annulation directe doit être effectuée (RG10).");
+                throw new StatutReservationInvalideException('Un litige ne peut pas être ouvert avant le début de la séance. Une annulation directe doit être effectuée (RG10).');
             }
 
             // RG14 : Vérifier qu'un litige n'existe pas déjà (1-to-1 unique)
             $litigeExistant = Litige::where('reservation_id', $lockedReservation->id)->exists();
             if ($litigeExistant) {
-                throw new StatutReservationInvalideException("Un litige a déjà été ouvert pour cette réservation (RG14).");
+                throw new StatutReservationInvalideException('Un litige a déjà été ouvert pour cette réservation (RG14).');
             }
 
             // Basculer la réservation en 'en_litige' (les crédits restent séquestrés, RG12)
@@ -492,7 +484,7 @@ class ReservationService
             $lockedReservation->save();
 
             // Créer le litige
-            $litige = new Litige();
+            $litige = new Litige;
             $litige->forceFill([
                 'reservation_id' => $lockedReservation->id,
                 'declarant_id' => $declarant->id,
@@ -515,10 +507,7 @@ class ReservationService
      * acceptée, réalisée ou en litige ne chevauche la plage [debut, fin[.
      * Deux séances consécutives (debut == autreFin ou fin == autreDebut) sont formellement autorisées.
      *
-     * @param  int       $userId
-     * @param  Creneau   $creneau
      * @param  int?      $exclureReservationId
-     * @return void
      *
      * @throws ConflitHoraireException
      */
@@ -533,7 +522,7 @@ class ReservationService
 
         // RG08 : Rechercher toutes les réservations actives/confirmées pour cet étudiant
         $reservationsExistantes = Reservation::whereIn('statut', ['acceptee', 'realisee', 'en_litige'])
-            ->when($exclureReservationId, fn($q) => $q->where('id', '!=', $exclureReservationId))
+            ->when($exclureReservationId, fn ($q) => $q->where('id', '!=', $exclureReservationId))
             ->where(function ($query) use ($userId) {
                 $query->where('beneficiaire_id', $userId)
                     ->orWhereHas('creneau.offre', function ($q) use ($userId) {
@@ -545,12 +534,12 @@ class ReservationService
 
         foreach ($reservationsExistantes as $existante) {
             $autreCreneau = $existante->creneau;
-            if (!$autreCreneau) {
+            if (! $autreCreneau) {
                 continue;
             }
 
             $autreDateStr = is_string($autreCreneau->date) ? $autreCreneau->date : $autreCreneau->date->format('Y-m-d');
-            
+
             // Ne comparer que si les séances se déroulent le même jour
             if (substr($autreDateStr, 0, 10) !== substr($dateStr, 0, 10)) {
                 continue;
@@ -575,12 +564,9 @@ class ReservationService
     /**
      * Récupère la liste paginée des réservations concernant l'utilisateur (bénéficiaire ou intervenant).
      *
-     * @param  User   $user
      * @param  array  $filtres  ['role', 'statut']
-     * @param  int    $perPage
-     * @return \Illuminate\Contracts\Pagination\LengthAwarePaginator
      */
-    public function getMesReservations(User $user, array $filtres = [], int $perPage = 15): \Illuminate\Contracts\Pagination\LengthAwarePaginator
+    public function getMesReservations(User $user, array $filtres = [], int $perPage = 15): LengthAwarePaginator
     {
         $role = $filtres['role'] ?? 'tous';
         $statut = $filtres['statut'] ?? null;
@@ -591,15 +577,15 @@ class ReservationService
         if ($role === 'beneficiaire') {
             $query->where('beneficiaire_id', $user->id);
         } elseif ($role === 'intervenant') {
-            $query->whereHas('creneau.offre', fn($q) => $q->where('etudiant_id', $user->id));
+            $query->whereHas('creneau.offre', fn ($q) => $q->where('etudiant_id', $user->id));
         } else {
             $query->where(function ($q) use ($user) {
                 $q->where('beneficiaire_id', $user->id)
-                    ->orWhereHas('creneau.offre', fn($sub) => $sub->where('etudiant_id', $user->id));
+                    ->orWhereHas('creneau.offre', fn ($sub) => $sub->where('etudiant_id', $user->id));
             });
         }
 
-        if (!empty($statut)) {
+        if (! empty($statut)) {
             $query->where('statut', $statut);
         }
 
@@ -609,14 +595,12 @@ class ReservationService
     /**
      * Vérifie que le compte de l'utilisateur n'est pas désactivé (RG18).
      *
-     * @param  User  $user
-     * @return void
      *
      * @throws CompteDesactiveException
      */
     protected function verifierCompteActif(User $user): void
     {
-        if (!$user->isActif()) {
+        if (! $user->isActif()) {
             throw new CompteDesactiveException("Votre compte est désactivé (RG18). Aucune opération n'est autorisée.");
         }
     }

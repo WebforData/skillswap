@@ -317,6 +317,7 @@ export const OffreDetailPage: React.FC = () => {
                                 </div>
                             </div>
                             <div className="text-[11px] text-slate-500">
+                                <Link className="text-indigo-700 underline" to={`/profils/${offre.intervenant?.id}/avis`}>Consulter les avis</Link>
                                 {intervenantStats?.nombre_evaluations
                                     ? `${intervenantStats.nombre_evaluations} avis reçu(s)`
                                     : 'Premiers échanges sur la plateforme'}

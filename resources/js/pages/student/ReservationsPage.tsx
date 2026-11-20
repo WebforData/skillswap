@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 /**
  * SkillSwap Campus — Gestion Complète des Réservations (RG05 à RG14)
  */
@@ -276,6 +277,8 @@ export const ReservationsPage: React.FC = () => {
                             {reservations.map((res) => {
                                 const isIntervenant = activeTab === 'recues';
                                 const isPending = res.statut === 'en_attente';
+                                const start = new Date(`${res.creneau?.date}T${res.creneau?.heure_debut}`).getTime();
+                                const end = new Date(`${res.creneau?.date}T${res.creneau?.heure_fin}`).getTime();
                                 const isAccepted = res.statut === 'acceptee';
                                 const isCompleted = res.statut === 'realisee';
                                 const isDispute = res.statut === 'en_litige';
@@ -291,6 +294,7 @@ export const ReservationsPage: React.FC = () => {
                                 return (
                                     <div
                                         key={res.id}
+                                        data-testid={`reservation-${res.id}`}
                                         className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs hover:border-slate-300 transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-5"
                                     >
                                         <div className="space-y-2 flex-1">
@@ -394,7 +398,7 @@ export const ReservationsPage: React.FC = () => {
                                             {/* Séance acceptée */}
                                             {isAccepted && (
                                                 <>
-                                                    {!hasConfirmed && (
+                                                    {!hasConfirmed && Date.now() >= end && (
                                                         <Button
                                                             variant="primary"
                                                             size="sm"
@@ -405,36 +409,36 @@ export const ReservationsPage: React.FC = () => {
                                                         </Button>
                                                     )}
 
-                                                    <Button
+                                                    {Date.now() < start && <Button
                                                         variant="outline"
                                                         size="sm"
                                                         onClick={() => setReservationToCancel(res)}
                                                     >
                                                         Annuler (RG10)
-                                                    </Button>
+                                                    </Button>}
 
-                                                    <Button
+                                                    {Date.now() >= start && <Button
                                                         variant="danger"
                                                         size="sm"
                                                         onClick={() => setReservationForDispute(res)}
                                                         icon={<AlertTriangle className="w-3.5 h-3.5" />}
                                                     >
                                                         Litige (RG12)
-                                                    </Button>
+                                                    </Button>}
                                                 </>
                                             )}
 
                                             {/* Séance clôturée / réalisée */}
                                             {isCompleted && (
                                                 <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
-                                                    Séance terminée et crédits transférés ✓
+                                                    Séance terminée et crédits transférés ✓ <Link className="underline" to="/app/evaluations">Évaluer</Link>
                                                 </span>
                                             )}
 
                                             {/* Séance en litige */}
                                             {isDispute && (
                                                 <span className="text-xs font-semibold text-amber-800 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200">
-                                                    Arbitrage administrateur en cours (RG13)
+                                                    Arbitrage en cours · <Link className="underline" to="/app/litiges">Consulter et répondre</Link>
                                                 </span>
                                             )}
                                         </div>
@@ -475,7 +479,7 @@ export const ReservationsPage: React.FC = () => {
                             rows={3}
                             value={refusalMotif}
                             onChange={(e) => setRefusalMotif(e.target.value)}
-                            placeholder="Motif du refus (optionnel mais conseillé)..."
+                            placeholder="Motif du refus..."
                             className="w-full text-xs rounded-xl border border-slate-200 p-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 resize-none"
                             disabled={isRefusing}
                         />
@@ -492,6 +496,7 @@ export const ReservationsPage: React.FC = () => {
                         <Button
                             variant="danger"
                             onClick={handleConfirmerRefus}
+                            disabled={refusalMotif.trim().length < 3}
                             isLoading={isRefusing}
                         >
                             Confirmer le refus

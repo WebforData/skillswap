@@ -18,7 +18,7 @@ export interface Evaluation {
 
 export interface EvaluationStats {
     etudiant_id?: number;
-    note_moyenne: number;
+    note_moyenne: number | null;
     nombre_evaluations: number;
 }
 

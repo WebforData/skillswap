@@ -90,16 +90,11 @@ class Creneau extends Model
      * Accessible uniquement :
      * 1. À l'intervenant de l'offre
      * 2. Au bénéficiaire d'une réservation confirmée (acceptee, realisee, en_litige)
-     * 3. À l'administrateur
      */
     public function peutAccederAuxDetailsPrives(?User $user): bool
     {
-        if (!$user) {
+        if (! $user) {
             return false;
-        }
-
-        if ($user->isAdministrateur()) {
-            return true;
         }
 
         // Intervenant propriétaire de l'offre
@@ -133,7 +128,10 @@ class Creneau extends Model
      */
     public function scopeFuturs(Builder $query): Builder
     {
-        return $query->where('date', '>=', now()->toDateString());
+        return $query->where(function ($q) {
+            $q->where('date', '>', now()->toDateString())
+                ->orWhere(fn ($today) => $today->where('date', now()->toDateString())->where('heure_debut', '>', now()->format('H:i:s')));
+        });
     }
 
     /**
@@ -146,4 +144,3 @@ class Creneau extends Model
         });
     }
 }
-

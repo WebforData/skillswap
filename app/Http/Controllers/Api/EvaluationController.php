@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\EvaluationRequest;
+use App\Http\Resources\EvaluationResource;
+use App\Models\User;
 use App\Services\EvaluationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -80,6 +82,14 @@ class EvaluationController extends Controller
     /**
      * Statistiques d'évaluation d'un étudiant (note moyenne et total).
      */
+    public function publicReviews(int $id): JsonResponse
+    {
+        $items = $this->evaluationService->getEvaluationsRecues(User::findOrFail($id), 10);
+        $items->setCollection($items->getCollection()->map(fn ($evaluation) => (new EvaluationResource($evaluation))->resolve(request())));
+
+        return response()->json($items);
+    }
+
     public function getStats(int $userId): JsonResponse
     {
         $stats = $this->evaluationService->getStatistiquesEtudiant($userId);

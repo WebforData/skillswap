@@ -22,6 +22,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class ApiResourcesTest extends TestCase
@@ -134,7 +135,7 @@ class ApiResourcesTest extends TestCase
 
     private function createUser(array $attributes = []): User
     {
-        $user = new User();
+        $user = new User;
         $user->forceFill(array_merge([
             'nom' => 'Dupont',
             'prenom' => 'Jean',
@@ -151,7 +152,7 @@ class ApiResourcesTest extends TestCase
 
     private function createReservation(array $attributes = []): Reservation
     {
-        $res = new Reservation();
+        $res = new Reservation;
         $res->forceFill(array_merge([
             'statut' => 'en_attente',
             'cout_credits' => 1,
@@ -168,7 +169,7 @@ class ApiResourcesTest extends TestCase
     {
         $user = $this->createUser();
         $request = Request::create('/api/me', 'GET');
-        $request->setUserResolver(fn() => $user);
+        $request->setUserResolver(fn () => $user);
 
         $resource = (new UserResource($user))->toArray($request);
 
@@ -183,8 +184,8 @@ class ApiResourcesTest extends TestCase
         $etudiantA = $this->createUser(['email' => 'a@campus.univ.fr']);
         $etudiantB = $this->createUser(['email' => 'b@campus.univ.fr']);
 
-        $request = Request::create('/api/users/' . $etudiantA->id, 'GET');
-        $request->setUserResolver(fn() => $etudiantB);
+        $request = Request::create('/api/users/'.$etudiantA->id, 'GET');
+        $request->setUserResolver(fn () => $etudiantB);
 
         $resource = (new UserResource($etudiantA))->resolve($request);
 
@@ -196,8 +197,8 @@ class ApiResourcesTest extends TestCase
         $etudiant = $this->createUser(['email' => 'etudiant@campus.univ.fr']);
         $admin = $this->createUser(['role' => 'administrateur', 'email' => 'admin@campus.univ.fr']);
 
-        $request = Request::create('/api/admin/utilisateurs/' . $etudiant->id, 'GET');
-        $request->setUserResolver(fn() => $admin);
+        $request = Request::create('/api/admin/utilisateurs/'.$etudiant->id, 'GET');
+        $request->setUserResolver(fn () => $admin);
 
         $resource = (new UserResource($etudiant))->resolve($request);
 
@@ -209,7 +210,7 @@ class ApiResourcesTest extends TestCase
         $proprietaire = $this->createUser(['email' => 'proprio@campus.univ.fr']);
         $tiers = $this->createUser(['email' => 'tiers@campus.univ.fr']);
 
-        $portefeuille = (new Portefeuille())->forceFill([
+        $portefeuille = (new Portefeuille)->forceFill([
             'etudiant_id' => $proprietaire->id,
             'solde_disponible' => 10,
             'credits_bloques' => 2,
@@ -218,7 +219,7 @@ class ApiResourcesTest extends TestCase
 
         // 1. Consultation par un tiers : solde masqué
         $requestTiers = Request::create('/api/portefeuille', 'GET');
-        $requestTiers->setUserResolver(fn() => $tiers);
+        $requestTiers->setUserResolver(fn () => $tiers);
 
         $resourceTiers = (new PortefeuilleResource($portefeuille))->resolve($requestTiers);
         $this->assertArrayNotHasKey('solde_disponible', $resourceTiers);
@@ -227,7 +228,7 @@ class ApiResourcesTest extends TestCase
 
         // 2. Consultation par le propriétaire : soldes visibles
         $requestOwner = Request::create('/api/portefeuille', 'GET');
-        $requestOwner->setUserResolver(fn() => $proprietaire);
+        $requestOwner->setUserResolver(fn () => $proprietaire);
 
         $resourceOwner = (new PortefeuilleResource($portefeuille))->resolve($requestOwner);
         $this->assertEquals(10, $resourceOwner['solde_disponible']);
@@ -243,7 +244,7 @@ class ApiResourcesTest extends TestCase
         $admin = $this->createUser(['role' => 'administrateur', 'email' => 'admin@campus.univ.fr']);
 
         $categorie = Categorie::create(['nom' => 'Musique']);
-        $offre = (new Offre())->forceFill([
+        $offre = (new Offre)->forceFill([
             'etudiant_id' => $intervenant->id,
             'categorie_id' => $categorie->id,
             'titre' => 'Guitare classique',
@@ -267,7 +268,7 @@ class ApiResourcesTest extends TestCase
 
         // Tiers curieux : lien privé doit être null
         $reqTiers = Request::create('/api/creneaux', 'GET');
-        $reqTiers->setUserResolver(fn() => $tiers);
+        $reqTiers->setUserResolver(fn () => $tiers);
         $resTiers = (new CreneauResource($creneau))->resolve($reqTiers);
         $this->assertNull($resTiers['lieu_ou_lien_prive']);
         $this->assertEquals('Plateforme en ligne', $resTiers['lieu_public']);
@@ -279,15 +280,15 @@ class ApiResourcesTest extends TestCase
 
         // Intervenant : lien privé accessible
         $reqIntervenant = Request::create('/api/creneaux', 'GET');
-        $reqIntervenant->setUserResolver(fn() => $intervenant);
+        $reqIntervenant->setUserResolver(fn () => $intervenant);
         $resIntervenant = (new CreneauResource($creneau))->resolve($reqIntervenant);
         $this->assertEquals('https://meet.google.com/secret-room-123', $resIntervenant['lieu_ou_lien_prive']);
 
         // Admin : lien privé accessible
         $reqAdmin = Request::create('/api/creneaux', 'GET');
-        $reqAdmin->setUserResolver(fn() => $admin);
+        $reqAdmin->setUserResolver(fn () => $admin);
         $resAdmin = (new CreneauResource($creneau))->resolve($reqAdmin);
-        $this->assertEquals('https://meet.google.com/secret-room-123', $resAdmin['lieu_ou_lien_prive']);
+        $this->assertNull($resAdmin['lieu_ou_lien_prive'], 'RG19 réserve les coordonnées privées aux participants, même face à un administrateur.');
 
         // Bénéficiaire en attente : lien privé masqué tant que non accepté
         $reservation = $this->createReservation([
@@ -298,7 +299,7 @@ class ApiResourcesTest extends TestCase
             'cout_credits' => 1,
         ]);
         $reqBenef = Request::create('/api/creneaux', 'GET');
-        $reqBenef->setUserResolver(fn() => $beneficiaire);
+        $reqBenef->setUserResolver(fn () => $beneficiaire);
         $resBenefAttente = (new CreneauResource($creneau))->resolve($reqBenef);
         $this->assertNull($resBenefAttente['lieu_ou_lien_prive']);
 
@@ -316,7 +317,7 @@ class ApiResourcesTest extends TestCase
         $admin = $this->createUser(['role' => 'administrateur', 'email' => 'admin2@campus.univ.fr']);
 
         $categorie = Categorie::create(['nom' => 'Code']);
-        $offre = (new Offre())->forceFill([
+        $offre = (new Offre)->forceFill([
             'etudiant_id' => $intervenant->id,
             'categorie_id' => $categorie->id,
             'titre' => 'PHP Expert',
@@ -346,7 +347,7 @@ class ApiResourcesTest extends TestCase
             'cout_credits' => 1,
         ]);
 
-        $litige = (new Litige())->forceFill([
+        $litige = (new Litige)->forceFill([
             'reservation_id' => $reservation->id,
             'declarant_id' => $beneficiaire->id,
             'description' => 'Intervenant absent sans justification.',
@@ -355,8 +356,8 @@ class ApiResourcesTest extends TestCase
         $litige->save();
 
         // Tiers : voit uniquement id et statut, description masquée
-        $reqTiers = Request::create('/api/litiges/' . $litige->id, 'GET');
-        $reqTiers->setUserResolver(fn() => $tiers);
+        $reqTiers = Request::create('/api/litiges/'.$litige->id, 'GET');
+        $reqTiers->setUserResolver(fn () => $tiers);
         $resTiers = (new LitigeResource($litige))->resolve($reqTiers);
 
         $this->assertEquals($litige->id, $resTiers['id']);
@@ -364,16 +365,16 @@ class ApiResourcesTest extends TestCase
         $this->assertArrayNotHasKey('description', $resTiers);
 
         // Déclarant : voit tous les détails
-        $reqDeclarant = Request::create('/api/litiges/' . $litige->id, 'GET');
-        $reqDeclarant->setUserResolver(fn() => $beneficiaire);
+        $reqDeclarant = Request::create('/api/litiges/'.$litige->id, 'GET');
+        $reqDeclarant->setUserResolver(fn () => $beneficiaire);
         $resDeclarant = (new LitigeResource($litige))->resolve($reqDeclarant);
 
         $this->assertEquals('Intervenant absent sans justification.', $resDeclarant['description']);
         $this->assertEquals('ouvert', $resDeclarant['statut']);
 
         // Admin : voit tous les détails
-        $reqAdmin = Request::create('/api/litiges/' . $litige->id, 'GET');
-        $reqAdmin->setUserResolver(fn() => $admin);
+        $reqAdmin = Request::create('/api/litiges/'.$litige->id, 'GET');
+        $reqAdmin->setUserResolver(fn () => $admin);
         $resAdmin = (new LitigeResource($litige))->resolve($reqAdmin);
 
         $this->assertEquals('Intervenant absent sans justification.', $resAdmin['description']);
@@ -385,7 +386,7 @@ class ApiResourcesTest extends TestCase
         $cible = $this->createUser(['email' => 'eval_cible@campus.univ.fr']);
 
         $categorie = Categorie::create(['nom' => 'Langues']);
-        $offre = (new Offre())->forceFill([
+        $offre = (new Offre)->forceFill([
             'etudiant_id' => $cible->id,
             'categorie_id' => $categorie->id,
             'titre' => 'Anglais C1',
@@ -415,7 +416,7 @@ class ApiResourcesTest extends TestCase
             'cout_credits' => 1,
         ]);
 
-        $evaluation = (new Evaluation())->forceFill([
+        $evaluation = (new Evaluation)->forceFill([
             'reservation_id' => $reservation->id,
             'auteur_id' => $auteur->id,
             'cible_id' => $cible->id,
@@ -438,7 +439,7 @@ class ApiResourcesTest extends TestCase
         $intervenant = $this->createUser(['email' => 'offre_interv@campus.univ.fr']);
         $categorie = Categorie::create(['nom' => 'Design 3D']);
 
-        $offre = (new Offre())->forceFill([
+        $offre = (new Offre)->forceFill([
             'etudiant_id' => $intervenant->id,
             'categorie_id' => $categorie->id,
             'titre' => 'Modélisation Blender',
@@ -462,8 +463,8 @@ class ApiResourcesTest extends TestCase
 
         $offre->load(['categorie', 'intervenant', 'creneaux']);
 
-        \Laravel\Sanctum\Sanctum::actingAs($intervenant);
-        $request = Request::create('/api/offres/' . $offre->id, 'GET');
+        Sanctum::actingAs($intervenant);
+        $request = Request::create('/api/offres/'.$offre->id, 'GET');
         $this->app->instance('request', $request);
 
         $res = (new OffreResource($offre))->response($request)->getData(true)['data'];
@@ -483,7 +484,7 @@ class ApiResourcesTest extends TestCase
         $beneficiaire = $this->createUser(['email' => 'res_benef@campus.univ.fr']);
         $categorie = Categorie::create(['nom' => 'Physique']);
 
-        $offre = (new Offre())->forceFill([
+        $offre = (new Offre)->forceFill([
             'etudiant_id' => $intervenant->id,
             'categorie_id' => $categorie->id,
             'titre' => 'Mécanique quantique',
@@ -515,8 +516,8 @@ class ApiResourcesTest extends TestCase
 
         $reservation->load(['creneau.offre.intervenant', 'beneficiaire']);
 
-        \Laravel\Sanctum\Sanctum::actingAs($beneficiaire);
-        $request = Request::create('/api/reservations/' . $reservation->id, 'GET');
+        Sanctum::actingAs($beneficiaire);
+        $request = Request::create('/api/reservations/'.$reservation->id, 'GET');
         $this->app->instance('request', $request);
 
         $res = (new ReservationResource($reservation))->response($request)->getData(true)['data'];

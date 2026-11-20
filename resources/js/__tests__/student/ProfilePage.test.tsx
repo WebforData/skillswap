@@ -8,6 +8,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { ProfilePage } from '../../pages/student/ProfilePage';
 import { AuthContext, AuthContextType } from '../../contexts/AuthContext';
 import { evaluationsApi } from '../../api/evaluations.api';
+import { NotificationProvider } from '../../contexts/NotificationContext';
 import { Evaluation } from '../../types/evaluation.types';
 
 vi.mock('../../api/evaluations.api', () => ({
@@ -16,6 +17,8 @@ vi.mock('../../api/evaluations.api', () => ({
         getStats: vi.fn(),
     },
 }));
+
+vi.mock('../../api/student.api', () => ({ studentApi: { history: vi.fn().mockResolvedValue({ data: [], current_page: 1, last_page: 1, total: 0 }), updateProfile: vi.fn().mockResolvedValue({}) } }));
 
 const mockEvaluations: Evaluation[] = [
     {
@@ -112,7 +115,7 @@ describe('ProfilePage', () => {
         render(
             <MemoryRouter initialEntries={['/app/profil']}>
                 <AuthContext.Provider value={createMockAuthContext()}>
-                    <ProfilePage />
+                    <NotificationProvider><ProfilePage /></NotificationProvider>
                 </AuthContext.Provider>
             </MemoryRouter>
         );
@@ -132,7 +135,7 @@ describe('ProfilePage', () => {
         render(
             <MemoryRouter initialEntries={['/app/profil']}>
                 <AuthContext.Provider value={createMockAuthContext()}>
-                    <ProfilePage />
+                    <NotificationProvider><ProfilePage /></NotificationProvider>
                 </AuthContext.Provider>
             </MemoryRouter>
         );
@@ -150,7 +153,7 @@ describe('ProfilePage', () => {
         render(
             <MemoryRouter initialEntries={['/app/profil']}>
                 <AuthContext.Provider value={createMockAuthContext()}>
-                    <ProfilePage />
+                    <NotificationProvider><ProfilePage /></NotificationProvider>
                 </AuthContext.Provider>
             </MemoryRouter>
         );
@@ -168,7 +171,7 @@ describe('ProfilePage', () => {
         render(
             <MemoryRouter initialEntries={['/app/profil']}>
                 <AuthContext.Provider value={createMockAuthContext()}>
-                    <ProfilePage />
+                    <NotificationProvider><ProfilePage /></NotificationProvider>
                 </AuthContext.Provider>
             </MemoryRouter>
         );

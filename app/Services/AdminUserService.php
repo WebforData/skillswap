@@ -14,9 +14,7 @@ class AdminUserService
     /**
      * Liste paginée des utilisateurs avec filtres et recherche.
      *
-     * @param  array  $filtres ['q', 'role', 'statut']
-     * @param  int    $perPage
-     * @return LengthAwarePaginator
+     * @param  array  $filtres  ['q', 'role', 'statut']
      */
     public function listerUtilisateurs(array $filtres = [], int $perPage = 15): LengthAwarePaginator
     {
@@ -27,7 +25,7 @@ class AdminUserService
             ]);
 
         // Recherche textuelle (nom, prénom, email, filière)
-        if (!empty($filtres['q'])) {
+        if (! empty($filtres['q'])) {
             $q = trim($filtres['q']);
             $query->where(function ($sub) use ($q) {
                 $sub->where('nom', 'LIKE', "%{$q}%")
@@ -38,12 +36,12 @@ class AdminUserService
         }
 
         // Filtre par rôle ('etudiant', 'administrateur')
-        if (!empty($filtres['role'])) {
+        if (! empty($filtres['role'])) {
             $query->where('role', $filtres['role']);
         }
 
         // Filtre par statut ('actif', 'desactive')
-        if (!empty($filtres['statut'])) {
+        if (! empty($filtres['statut'])) {
             $query->where('statut', $filtres['statut']);
         }
 
@@ -52,9 +50,6 @@ class AdminUserService
 
     /**
      * Consulte le profil complet d'un utilisateur avec statistiques d'activité.
-     *
-     * @param  int  $id
-     * @return User
      */
     public function getUtilisateur(int $id): User
     {
@@ -70,9 +65,6 @@ class AdminUserService
     /**
      * Désactive un compte utilisateur (RG18).
      *
-     * @param  User  $admin
-     * @param  int   $cibleId
-     * @return User
      *
      * @throws AdminException
      */
@@ -83,7 +75,7 @@ class AdminUserService
 
             // Interdire à un administrateur de désactiver son propre compte
             if ((int) $admin->id === (int) $cible->id) {
-                throw new AdminException("Vous ne pouvez pas désactiver votre propre compte administrateur.", Response::HTTP_FORBIDDEN);
+                throw new AdminException('Vous ne pouvez pas désactiver votre propre compte administrateur.', Response::HTTP_FORBIDDEN);
             }
 
             if ($cible->statut === 'desactive') {
@@ -98,21 +90,21 @@ class AdminUserService
             Reservation::where('beneficiaire_id', $cible->id)
                 ->where('statut', 'en_attente')
                 ->lockForUpdate()
-                ->update([
+                ->get()->each(fn ($reservation) => $reservation->forceFill([
                     'statut' => 'annulee',
                     'motif_refus' => "Demande annulée suite à la désactivation du compte par l'administration (RG18).",
                     'updated_at' => now(),
-                ]);
+                ])->save());
 
             // 3. RG18 : Annuler automatiquement les demandes en attente reçues sur les offres de l'étudiant
-            Reservation::whereHas('creneau.offre', fn($q) => $q->where('etudiant_id', $cible->id))
+            Reservation::whereHas('creneau.offre', fn ($q) => $q->where('etudiant_id', $cible->id))
                 ->where('statut', 'en_attente')
                 ->lockForUpdate()
-                ->update([
+                ->get()->each(fn ($reservation) => $reservation->forceFill([
                     'statut' => 'annulee',
                     'motif_refus' => "Demande annulée : le compte de l'intervenant a été désactivé par l'administration (RG18).",
                     'updated_at' => now(),
-                ]);
+                ])->save());
 
             // SÉCURITÉ FINANCIÈRE : Les réservations déjà acceptées (acceptee, realisee, en_litige) sont STRICTEMENT
             // préservées, et les crédits bloqués demeurent intacts sous séquestre sans mouvement automatique.
@@ -123,14 +115,10 @@ class AdminUserService
 
     /**
      * Réactive un compte utilisateur.
-     *
-     * @param  User  $admin
-     * @param  int   $cibleId
-     * @return User
      */
     public function activerCompte(User $admin, int $cibleId): User
     {
-        return DB::transaction(function () use ($admin, $cibleId) {
+        return DB::transaction(function () use ($cibleId) {
             $cible = User::where('id', $cibleId)->lockForUpdate()->firstOrFail();
 
             if ($cible->statut === 'actif') {

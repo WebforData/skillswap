@@ -11,6 +11,8 @@ class Portefeuille extends Model
 {
     use HasFactory;
 
+    protected $appends = ['solde_total'];
+
     /**
      * Nom de la table associée.
      */
@@ -88,4 +90,3 @@ class Portefeuille extends Model
         return $this->solde_disponible + $this->credits_bloques;
     }
 }
-

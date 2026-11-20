@@ -1,3 +1,5 @@
+import { studentApi } from '../../api/student.api';
+import { Categorie } from '../../types/offre.types';
 /**
  * SkillSwap Campus — Page Mes Offres & Gestion des Créneaux (RG02, RG04, RG17)
  */
@@ -25,17 +27,11 @@ import { Offre, CreneauCreationPayload, NiveauOffre, ModeOffre } from '../../typ
 import { Button, Input, Select, Badge, Card, Modal, Spinner, EmptyState, AlertBanner } from '../../components/common';
 import axios from 'axios';
 
-// Catégories de référence
-const CATEGORIES_REF = [
-    { id: 1, nom: 'Informatique & Programmation' },
-    { id: 2, nom: 'Langues & Communication' },
-    { id: 3, nom: 'Mathématiques & Sciences' },
-    { id: 4, nom: 'Méthodologie & Soft Skills' },
-    { id: 5, nom: 'Design & Multimédia' },
-];
-
 export const MesOffresPage: React.FC = () => {
     const { success, error: notifyError } = useNotification();
+
+    const [categories, setCategories] = useState<Categorie[]>([]);
+    useEffect(() => { studentApi.categories().then(setCategories).catch(() => notifyError('Catégories indisponibles.')); }, []);
 
     // État principal des offres
     const [offres, setOffres] = useState<Offre[]>([]);
@@ -50,7 +46,7 @@ export const MesOffresPage: React.FC = () => {
         titre: '',
         competence: '',
         description: '',
-        categorie_id: 1,
+        categorie_id: 0,
         niveau: 'debutant' as NiveauOffre,
         duree: 1, // 1 ou 2 (RG02)
         mode: 'presentiel' as ModeOffre,
@@ -108,7 +104,7 @@ export const MesOffresPage: React.FC = () => {
             titre: '',
             competence: '',
             description: '',
-            categorie_id: 1,
+            categorie_id: 0,
             niveau: 'debutant',
             duree: 1,
             mode: 'presentiel',
@@ -418,7 +414,8 @@ export const MesOffresPage: React.FC = () => {
                                                 variant="secondary"
                                                 size="sm"
                                                 onClick={() => ouvrirGestionCreneaux(offre)}
-                                                disabled={isArchived}
+                                                disabled={!isPublished}
+                                                title={!isPublished ? "Publiez votre offre pour ajouter des créneaux." : undefined}
                                                 icon={<Clock className="w-3.5 h-3.5" />}
                                             >
                                                 Gérer les créneaux
@@ -518,7 +515,8 @@ export const MesOffresPage: React.FC = () => {
                             label="Catégorie universitaire"
                             value={offerForm.categorie_id}
                             onChange={(e) => setOfferForm({ ...offerForm, categorie_id: Number(e.target.value) })}
-                            options={CATEGORIES_REF.map((c) => ({ value: c.id, label: c.nom }))}
+                            required
+                            options={[{ value: 0, label: 'Choisir une catégorie' }, ...categories.map((c) => ({ value: c.id, label: c.nom }))]}
                             error={offerFormErrors.categorie_id}
                             disabled={isSavingOffer}
                         />

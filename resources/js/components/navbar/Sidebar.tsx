@@ -48,12 +48,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { label: 'Planning des séances', to: '/app/planning', icon: Calendar },
         { label: 'Mes réservations', to: '/app/reservations', icon: Clock },
         { label: 'Évaluations & avis', to: '/app/evaluations', icon: Star },
+        { label: 'Notifications', to: '/app/notifications', icon: Clock },
+        { label: 'Mes litiges', to: '/app/litiges', icon: ShieldAlert },
         { label: 'Profil & Portefeuille', to: '/app/profil', icon: UserIcon },
     ];
 
     const adminNavItems: NavItem[] = [
         { label: 'Indicateurs & Stats', to: '/admin', icon: LayoutDashboard, end: true },
         { label: 'Gestion des étudiants', to: '/admin/users', icon: Users },
+        { label: 'Séances à traiter', to: '/admin/seances', icon: Calendar },
         { label: 'Catégories', to: '/admin/categories', icon: Tag },
         { label: 'Modération des offres', to: '/admin/offres', icon: Layers },
         { label: 'Arbitrage des litiges', to: '/admin/litiges', icon: ShieldAlert },

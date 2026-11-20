@@ -10,6 +10,7 @@ export type LitigeDecision = 'transfert_intervenant' | 'restitution_beneficiaire
 export type LitigeStatut = 'ouvert' | 'resolu';
 
 export interface Litige {
+    statements?: Array<{ id: number; user_id: number; message: string; prenom: string; nom: string; created_at: string }>;
     id: number;
     reservation_id: number;
     declarant_id: number;
